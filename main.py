@@ -21,21 +21,6 @@ async def load_db():
         result = await conn.fetchval("SELECT data FROM bot_data WHERE id = 1")
     return json.loads(result) if result else None
 
-async def create_table():
-    try:
-        pool = await get_db_pool()
-        async with pool.acquire() as conn:
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS bot_data (
-                    id SERIAL PRIMARY KEY,
-                    data JSONB NOT NULL
-                )
-            """)
-        logging.info("bot_data table created successfully")
-    except Exception as e:
-        logging.error(f"Error creating bot_data table: {e}")
-        raise
-
 async def create_tables():
     try:
         pool = await get_db_pool()
@@ -139,7 +124,7 @@ async def setup_application():
     
     # Add your command handlers here
     from bot.handlers import handle_document, handle_text, register_handlers
-    application.add_handler(MessageHandler(filters.DOCUMENT, handle_document))
+    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     register_handlers(application)
     
