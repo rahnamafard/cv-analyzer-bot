@@ -4,6 +4,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, B
 from telegram.error import NetworkError, Conflict
 import asyncio
 import json
+import signal
 
 from config import DB_URL, CV_ANALYZER_BOT_TOKEN
 
@@ -149,35 +150,48 @@ async def initialize_application():
     return application
 
 async def run_application(application):
-    async with application:
-        await application.initialize()
-        await application.start()
-        logging.info("Application started successfully. Press Ctrl+C to stop.")
-        await application.run_polling(drop_pending_updates=True)
+    await application.initialize()
+    await application.start()
+    logging.info("Application started successfully. Press Ctrl+C to stop.")
+    await application.updater.start_polling(drop_pending_updates=True)
+
+async def shutdown(application):
+    logging.info("Shutting down...")
+    await application.stop()
+    await application.shutdown()
+
+def signal_handler(signum, frame):
+    logging.info("Signal received, exiting...")
+    asyncio.get_event_loop().stop()
 
 async def main():
+    application = None
     try:
         logging.debug("Starting initialization")
         application = await initialize_application()
         logging.debug("Initialization complete, running application")
+        
+        # Set up signal handler
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
         await run_application(application)
     except asyncio.CancelledError:
         logging.info("Application is shutting down...")
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=True)
+    finally:
+        if application:
+            await shutdown(application)
 
 def run_main():
+    loop = asyncio.get_event_loop()
     try:
-        asyncio.run(main())
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         logging.info("Bot stopped by user. Shutting down.")
-    except RuntimeError as e:
-        if str(e) == "Event loop is closed":
-            logging.info("Event loop was closed. Application has shut down.")
-        else:
-            logging.exception(f"An unexpected RuntimeError occurred: {e}")
-    except Exception as e:
-        logging.exception(f"An unexpected error occurred: {e}")
+    finally:
+        loop.close()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
