@@ -3,6 +3,7 @@ import logging
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, BasePersistence
 from telegram.error import NetworkError, Conflict
 import asyncio
+import json
 
 from config import DB_URL, CV_ANALYZER_BOT_TOKEN
 
@@ -12,13 +13,23 @@ async def get_db_pool():
 async def save_db(data):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        await conn.execute("INSERT INTO bot_data (data) VALUES ($1) ON CONFLICT (id) DO UPDATE SET data = $1", data)
+        await conn.execute("INSERT INTO bot_data (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1", data)
 
 async def load_db():
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         result = await conn.fetchval("SELECT data FROM bot_data WHERE id = 1")
-    return result
+    return json.loads(result) if result else None
+
+async def create_table():
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS bot_data (
+                id SERIAL PRIMARY KEY,
+                data JSONB NOT NULL
+            )
+        """)
 
 class CustomPostgreSQLPersistence(BasePersistence):
     def __init__(self, load_func, save_func):
@@ -34,7 +45,7 @@ class CustomPostgreSQLPersistence(BasePersistence):
 
     async def update_data(self, data):
         self.data = data
-        await self.save_func(data)
+        await self.save_func(json.dumps(data))
 
     async def get_bot_data(self):
         return await self.get_data()
@@ -76,7 +87,8 @@ class CustomPostgreSQLPersistence(BasePersistence):
         pass
 
     async def flush(self):
-        await self.save_func(self.data)
+        if self.data:
+            await self.save_func(json.dumps(self.data))
 
     async def update_callback_data(self, data):
         pass
