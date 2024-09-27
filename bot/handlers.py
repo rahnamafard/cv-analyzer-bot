@@ -24,7 +24,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, storage_serv
     try:
         saved_user = await storage_service.save_user(user.id, user.username)
         logger.info(f"User saved: {saved_user}")
-        await update.message.reply_text(f"سلام {user.first_name}! من ربات تحلیلگر رزومه هستم. لطفاً رزومه خود را به صورت فایل PDF ارسال کنید تا آن را حلیل کنم.")
+        await update.message.reply_text(f"سلام {user.first_name}! من ربات تحلیلگر رزومه هستم. لطفاً رزومه خود را به صورت فایل PDF ارسال کنید تا آن را تحلیل کنم.")
     except Exception as e:
         logger.error(f"Error saving user: {e}", exc_info=True)
         await update.message.reply_text("متأسفانه در حال حاضر مشکلی پیش آمده است. لطفاً بعداً دوباره تلاش کنید.")
