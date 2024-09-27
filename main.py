@@ -149,7 +149,11 @@ async def main():
         await application.start()
         
         logging.info("Application started successfully. Press Ctrl+C to stop.")
-        await application.run_polling(drop_pending_updates=True)
+        
+        # Instead of run_polling, we'll use our own polling mechanism
+        while True:
+            await application.update_queue.get()
+            
     except asyncio.CancelledError:
         logging.info("Application is shutting down...")
     except Exception as e:
@@ -167,8 +171,10 @@ async def main():
                 logging.error(f"Error during application shutdown: {e}", exc_info=True)
 
 def run_main():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        asyncio.run(main())
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         logging.info("Bot stopped by user. Shutting down.")
     except RuntimeError as e:
@@ -178,6 +184,9 @@ def run_main():
             logging.exception(f"An unexpected RuntimeError occurred: {e}")
     except Exception as e:
         logging.exception(f"An unexpected error occurred: {e}")
+    finally:
+        loop.close()
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     run_main()
