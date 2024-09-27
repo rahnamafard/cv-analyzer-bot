@@ -39,8 +39,23 @@ async def main() -> None:
     await application.initialize()
     await application.start()
 
-    # Run the bot until you press Ctrl-C
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Set up graceful shutdown
+    stop = asyncio.Event()
+    
+    def signal_handler():
+        """Handles shutdown signals"""
+        stop.set()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
+
+    # Run the bot until the stop event is set
+    try:
+        await application.run_polling(allowed_updates=Update.ALL_TYPES, stop_signals=None)
+    finally:
+        await application.stop()
+        await application.shutdown()
 
 if __name__ == "__main__":
     try:
