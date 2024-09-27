@@ -15,7 +15,7 @@ logging.basicConfig(
 
 # Silence all loggers except for critical messages
 for logger_name in logging.root.manager.loggerDict:
-    logging.getLogger(logger_name).setLevel(logging.CRIICAL)
+    logging.getLogger(logger_name).setLevel(logging.CRITICAL)
 
 # Set your application's logger to INFO or WARNING as needed
 logger = logging.getLogger(__name__)
