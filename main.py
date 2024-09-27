@@ -135,9 +135,7 @@ async def initialize_application():
     await create_tables()
     logging.debug("Tables created, setting up application")
     application = await setup_application()
-    logging.debug("Application set up, initializing")
-    await application.initialize()
-    logging.debug("Application initialized")
+    logging.debug("Application set up")
     return application
 
 async def main():
@@ -146,35 +144,30 @@ async def main():
         logging.debug("Starting initialization")
         application = await initialize_application()
         logging.debug("Initialization complete, starting application")
+        await application.initialize()
         await application.start()
         
         logging.info("Application started successfully. Press Ctrl+C to stop.")
         
-        # Instead of run_polling, we'll use our own polling mechanism
-        while True:
-            await application.update_queue.get()
-            
+        # Run the application
+        await application.run_polling(drop_pending_updates=True)
+        
     except asyncio.CancelledError:
         logging.info("Application is shutting down...")
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=True)
     finally:
-        if application:
+        if application and application.running:
             try:
                 logging.debug("Attempting to stop application")
-                if application.running:
-                    await application.stop()
-                logging.debug("Application stopped, shutting down")
-                await application.shutdown()
-                logging.debug("Application shut down complete")
+                await application.stop()
+                logging.debug("Application stopped")
             except Exception as e:
                 logging.error(f"Error during application shutdown: {e}", exc_info=True)
 
 def run_main():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logging.info("Bot stopped by user. Shutting down.")
     except RuntimeError as e:
@@ -184,8 +177,6 @@ def run_main():
             logging.exception(f"An unexpected RuntimeError occurred: {e}")
     except Exception as e:
         logging.exception(f"An unexpected error occurred: {e}")
-    finally:
-        loop.close()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
