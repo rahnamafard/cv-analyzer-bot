@@ -130,13 +130,22 @@ async def setup_application():
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logging.error(f"Exception while handling an update: {context.error}")
 
+async def initialize_application():
+    logging.debug("Starting table creation")
+    await create_tables()
+    logging.debug("Tables created, setting up application")
+    application = await setup_application()
+    logging.debug("Application set up, initializing")
+    await application.initialize()
+    logging.debug("Application initialized")
+    return application
+
 async def main():
     application = None
     try:
-        await create_tables()  # Create all necessary tables
-        
-        application = await setup_application()
-        await application.initialize()
+        logging.debug("Starting initialization")
+        application = await initialize_application()
+        logging.debug("Initialization complete, starting application")
         await application.start()
         
         logging.info("Application started successfully. Press Ctrl+C to stop.")
@@ -144,17 +153,22 @@ async def main():
     except asyncio.CancelledError:
         logging.info("Application is shutting down...")
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}", exc_info=True)
     finally:
         if application:
-            if application.running:
-                await application.stop()
-            await application.shutdown()
+            try:
+                logging.debug("Attempting to stop application")
+                if application.running:
+                    await application.stop()
+                logging.debug("Application stopped, shutting down")
+                await application.shutdown()
+                logging.debug("Application shut down complete")
+            except Exception as e:
+                logging.error(f"Error during application shutdown: {e}", exc_info=True)
 
 def run_main():
     try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logging.info("Bot stopped by user. Shutting down.")
     except RuntimeError as e:
@@ -164,9 +178,6 @@ def run_main():
             logging.exception(f"An unexpected RuntimeError occurred: {e}")
     except Exception as e:
         logging.exception(f"An unexpected error occurred: {e}")
-    finally:
-        if not loop.is_closed():
-            loop.close()
 
 if __name__ == '__main__':
     run_main()
