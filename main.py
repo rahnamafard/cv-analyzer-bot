@@ -65,15 +65,9 @@ class CustomPostgreSQLPersistence(BasePersistence):
             self.data = await self.load_func() or {}
         return self.data
 
-    async def update_data(self, data):
+    async def update_bot_data(self, data):
         self.data = data
         await self.save_func(json.dumps(data))
-
-    async def get_bot_data(self):
-        return await self.get_data()
-
-    async def update_bot_data(self, data):
-        await self.update_data(data)
 
     async def get_chat_data(self):
         return {}
@@ -152,7 +146,7 @@ async def main():
     except Exception as e:
         logging.error(f"An error occurred: {e}")
     finally:
-        if application:
+        if application and application.running:
             await application.stop()
             await application.shutdown()
 
