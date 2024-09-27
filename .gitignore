@@ -1,0 +1,21 @@
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Database dumps
+*.sql
+*.dump
+
+# Other potential database-related files
+*.bak
+*.backup
+*.db3
+
+# Logs
+*.log
+*.log.*
+*.log.*.*
+*.log.*.*.*
+*.log.*.*.*.*
+*.log.*.*.*.*.*
