@@ -4,7 +4,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import NetworkError, Conflict
 import asyncio
 
-from config import CV_ANALYZER_BOT_TOKEN, DB_URL
+from config import DB_URL
 
 async def get_db_pool():
     return await asyncpg.create_pool(DB_URL)
