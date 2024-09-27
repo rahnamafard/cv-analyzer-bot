@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 cv_analyzer = CVAnalyzer(GOOGLE_GENERATIVE_AI_KEY)
 storage_service = StorageService()
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /start is issued."""
+    user = update.effective_user
+    await storage_service.save_user(user.id, user.username)
+    await update.message.reply_text(f"سلام {user.first_name}! من ربات تحلیلگر رزومه هستم. لطفاً رزومه خود را به صورت فایل PDF ارسال کنید تا آن را تحلیل کنم.")
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /help is issued."""
+    await update.message.reply_text("برای تحلیل رزومه، لطفاً آن را به صورت فایل PDF ارسال کنید. من آن را بررسی کرده و نتایج تحلیل را برای شما ارسال خواهم کرد.")
+
 async def check_channel_membership(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     user_id = update.effective_user.id
     chat_member = await context.bot.get_chat_member(chat_id='@growly_ir', user_id=user_id)
