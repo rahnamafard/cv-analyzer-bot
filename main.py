@@ -34,8 +34,23 @@ async def main() -> None:
     # Register the rating handler
     register_handlers(application)
 
-    # Run the bot until the user presses Ctrl-C
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Start the bot
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+
+    try:
+        await application.updater.stop()
+    finally:
+        await application.stop()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "Event loop is closed" in str(e):
+            # The event loop is already closed, which is fine
+            pass
+        else:
+            # Some other RuntimeError occurred, so we re-raise it
+            raise
