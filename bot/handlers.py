@@ -112,10 +112,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             if "can't parse entities" in str(e).lower():
                 logger.warning(f"Markdown parsing failed. Sending message without formatting: {str(e)}")
                 await update.message.reply_text(analysis.replace('*', '').replace('\\', ''))
-                await update.message.reply_text(
-                    "لطفاً کیفیت این تحلیل را ارزیابی کنید:",
-                    reply_markup=reply_markup
-                )
             else:
                 raise
         

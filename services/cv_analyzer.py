@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 class CVAnalyzer:
     def __init__(self, api_key):
         genai.configure(api_key=api_key)
-        # Use 'gemini-pro-vision' for image processing
-        self.model = genai.GenerativeModel('gemini-pro-vision')
+        # Use 'gemini-1.5-flash' instead of the deprecated 'gemini-pro-vision'
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
 
     @retry(
         stop=stop_after_attempt(3),
