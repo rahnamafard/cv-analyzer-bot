@@ -40,27 +40,26 @@ async def main() -> None:
     await application.start()
 
     # Set up graceful shutdown
-    stop = asyncio.Event()
+    stop_signal = asyncio.Event()
     
     def signal_handler():
         """Handles shutdown signals"""
-        stop.set()
+        stop_signal.set()
 
-    loop = asyncio.get_running_loop()
+    # Get the current event loop
+    loop = asyncio.get_event_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, signal_handler)
 
-    # Run the bot until the stop event is set
     try:
-        await application.run_polling(allowed_updates=Update.ALL_TYPES, stop_signals=None)
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+        logger.info("Bot started. Press Ctrl+C to stop.")
+        await stop_signal.wait()  # Wait until the stop signal is received
     finally:
+        logger.info("Stopping the bot...")
         await application.stop()
         await application.shutdown()
+        logger.info("Bot stopped gracefully")
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Bot stopped gracefully")
-    except Exception as e:
-        print(f"Error occurred: {e}")
+    asyncio.run(main())
