@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class CVAnalyzer:
     def __init__(self, api_key):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-pro')
+        self.model = genai.GenerativeModel('gemini-pro')
 
     @retry(
         stop=stop_after_attempt(3),
