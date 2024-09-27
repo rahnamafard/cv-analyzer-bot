@@ -153,7 +153,8 @@ async def main():
 
 def run_main():
     try:
-        asyncio.run(main())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         logging.info("Bot stopped by user. Shutting down.")
     except RuntimeError as e:
@@ -163,6 +164,9 @@ def run_main():
             logging.exception(f"An unexpected RuntimeError occurred: {e}")
     except Exception as e:
         logging.exception(f"An unexpected error occurred: {e}")
+    finally:
+        if not loop.is_closed():
+            loop.close()
 
 if __name__ == '__main__':
     run_main()
