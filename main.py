@@ -7,19 +7,15 @@ from bot.handlers import start, help_command, handle_document, handle_text, regi
 from services.storage import StorageService
 from config import CV_ANALYZER_BOT_TOKEN, DB_URL
 
-# Set the root logger to WARNING level
+# Set the root logger to DEBUG level
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
-    level=logging.WARNING
+    level=logging.DEBUG
 )
 
-# Silence all loggers except for critical messages
-for logger_name in logging.root.manager.loggerDict:
-    logging.getLogger(logger_name).setLevel(logging.CRITICAL)
-
-# Set your application's logger to INFO or WARNING as needed
+# Set your application's logger to DEBUG
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # or logging.WARNING if you want even less output
+logger.setLevel(logging.DEBUG)
 
 async def main() -> None:
     # Check if required environment variables are set
