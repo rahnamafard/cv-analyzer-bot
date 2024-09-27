@@ -45,14 +45,44 @@ class CustomPostgreSQLPersistence(BasePersistence):
     async def get_chat_data(self):
         return {}
 
+    async def update_chat_data(self, chat_id, data):
+        pass
+
     async def get_user_data(self):
         return {}
+
+    async def update_user_data(self, user_id, data):
+        pass
 
     async def get_conversations(self, name):
         return {}
 
     async def update_conversation(self, name, key, new_state):
         pass
+
+    async def drop_chat_data(self, chat_id):
+        pass
+
+    async def drop_user_data(self, user_id):
+        pass
+
+    async def refresh_user_data(self, user_id, user_data):
+        pass
+
+    async def refresh_chat_data(self, chat_id, chat_data):
+        pass
+
+    async def refresh_bot_data(self, bot_data):
+        pass
+
+    async def flush(self):
+        await self.save_func(self.data)
+
+    async def update_callback_data(self, data):
+        pass
+
+    async def get_callback_data(self):
+        return None
 
 async def setup_application():
     persistence = CustomPostgreSQLPersistence(load_db, save_db)
