@@ -22,14 +22,51 @@ async def load_db():
     return json.loads(result) if result else None
 
 async def create_table():
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS bot_data (
-                id SERIAL PRIMARY KEY,
-                data JSONB NOT NULL
-            )
-        """)
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS bot_data (
+                    id SERIAL PRIMARY KEY,
+                    data JSONB NOT NULL
+                )
+            """)
+        logging.info("bot_data table created successfully")
+    except Exception as e:
+        logging.error(f"Error creating bot_data table: {e}")
+        raise
+
+async def create_tables():
+    try:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS bot_data (
+                    id SERIAL PRIMARY KEY,
+                    data JSONB NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS cv_data (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    username TEXT,
+                    file_id TEXT NOT NULL,
+                    analyzed_data TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    rating INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS cv_job_positions (
+                    id SERIAL PRIMARY KEY,
+                    cv_id INTEGER REFERENCES cv_data(id),
+                    job_position TEXT NOT NULL
+                );
+            """)
+        logging.info("Tables created successfully")
+    except Exception as e:
+        logging.error(f"Error creating tables: {e}")
+        raise
 
 class CustomPostgreSQLPersistence(BasePersistence):
     def __init__(self, load_func, save_func):
@@ -109,6 +146,8 @@ async def setup_application():
 async def main():
     application = None
     try:
+        await create_tables()  # Create all necessary tables
+        
         application = await setup_application()
         await application.initialize()
         await application.start()

@@ -2,13 +2,16 @@ import sqlite3
 import json
 import uuid
 from datetime import datetime
-
-
+import asyncpg
+from config import DB_URL
 
 class StorageService:
     def __init__(self, db_path='cv_analyzer.db'):
         self.conn = sqlite3.connect(db_path)
         self.create_tables()
+
+    async def get_db_pool(self):
+        return await asyncpg.create_pool(DB_URL)
 
     def create_tables(self):
         with self.conn:
@@ -72,21 +75,51 @@ class StorageService:
                 }
             return None
 
-    def save_cv(self, cv_data):
-        cv_id = str(uuid.uuid4())
-        with self.conn:
-            # Save or update user data
-            self.save_user(cv_data['user_id'], cv_data.get('username', ''))
-            
-            # Increment user's CV count
-            self.conn.execute('UPDATE users SET cv_count = cv_count + 1 WHERE user_id = ?', (cv_data['user_id'],))
-            
-            # Save CV data
-            self.conn.execute('''
-                INSERT INTO cvs (cv_id, user_id, file_id, analyzed_data, model, rating)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (cv_id, cv_data['user_id'], cv_data['file_id'], json.dumps(cv_data['analyzed_data']), cv_data['model'], cv_data['rating']))
-        return cv_id
+    async def save_cv(self, cv_data):
+        pool = await self.get_db_pool()
+        async with pool.acquire() as conn:
+            result = await conn.fetchrow("""
+                INSERT INTO cv_data (user_id, username, file_id, analyzed_data, model, rating)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id
+            """, cv_data['user_id'], cv_data['username'], cv_data['file_id'], 
+                cv_data['analyzed_data'], cv_data['model'], cv_data['rating'])
+            return result['id']
+
+    async def save_cv_job_positions(self, cv_id, job_positions):
+        pool = await self.get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.executemany("""
+                INSERT INTO cv_job_positions (cv_id, job_position)
+                VALUES ($1, $2)
+            """, [(cv_id, position) for position in job_positions])
+
+    async def update_cv_rating(self, cv_id, rating):
+        pool = await self.get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE cv_data
+                SET rating = $1
+                WHERE id = $2
+            """, rating, cv_id)
+
+    async def get_cv_data(self, cv_id):
+        pool = await self.get_db_pool()
+        async with pool.acquire() as conn:
+            result = await conn.fetchrow("""
+                SELECT * FROM cv_data
+                WHERE id = $1
+            """, cv_id)
+            return dict(result) if result else None
+
+    async def get_cv_job_positions(self, cv_id):
+        pool = await self.get_db_pool()
+        async with pool.acquire() as conn:
+            results = await conn.fetch("""
+                SELECT job_position FROM cv_job_positions
+                WHERE cv_id = $1
+            """, cv_id)
+            return [row['job_position'] for row in results]
 
     def get_cv(self, cv_id):
         with self.conn:

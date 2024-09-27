@@ -77,11 +77,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "model": cv_analyzer.model.model_name,  # Dynamically specify the model used
             "rating": None  # Initialize rating as None
         }
-        cv_id = storage_service.save_cv(cv_data)
+        cv_id = await storage_service.save_cv(cv_data)
         
         # Save job positions
         if job_positions:
-            storage_service.save_cv_job_positions(cv_id, job_positions)
+            await storage_service.save_cv_job_positions(cv_id, job_positions)
             print(f"Saved job positions for CV {cv_id}: {job_positions}")  # Add this line for debugging
         else:
             print(f"No job positions to save for CV {cv_id}")  # Add this line for debugging
@@ -131,10 +131,10 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await query.answer()
 
     cv_id, rating = query.data.split("_")[1:]
+    cv_id = int(cv_id)
     rating = int(rating)
 
-    # Update the CV data with the rating
-    storage_service.update_cv_rating(cv_id, rating)
+    await storage_service.update_cv_rating(cv_id, rating)
 
     # Get the rating text
     rating_text = {
