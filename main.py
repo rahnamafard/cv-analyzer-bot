@@ -15,11 +15,11 @@ logging.basicConfig(
 
 # Silence all loggers except for critical messages
 for logger_name in logging.root.manager.loggerDict:
-    logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+    logging.getLogger(logger_name).setLevel(logging.CRIICAL)
 
 # Set your application's logger to INFO or WARNING as needed
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)  # or logging.WARNING if you want even less output
+logger.setLevel(logging.DEBUG)  # or logging.WARNING if you want even less output
 
 async def main() -> None:
     # Check if required environment variables are set
