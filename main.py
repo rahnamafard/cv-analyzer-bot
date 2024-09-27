@@ -134,36 +134,37 @@ async def initialize_application():
     logging.debug("Starting table creation")
     await create_tables()
     logging.debug("Tables created, setting up application")
-    application = await setup_application()
+    application = Application.builder().token(CV_ANALYZER_BOT_TOKEN).build()
+    
+    # Add your command handlers here
+    from bot.handlers import handle_document, handle_text, register_handlers
+    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    register_handlers(application)
+    
+    # Add error handler
+    application.add_error_handler(error_handler)
+    
     logging.debug("Application set up")
     return application
 
+async def run_application(application):
+    async with application:
+        await application.initialize()
+        await application.start()
+        logging.info("Application started successfully. Press Ctrl+C to stop.")
+        await application.run_polling(drop_pending_updates=True)
+
 async def main():
-    application = None
     try:
         logging.debug("Starting initialization")
         application = await initialize_application()
-        logging.debug("Initialization complete, starting application")
-        await application.initialize()
-        await application.start()
-        
-        logging.info("Application started successfully. Press Ctrl+C to stop.")
-        
-        # Run the application
-        await application.run_polling(drop_pending_updates=True)
-        
+        logging.debug("Initialization complete, running application")
+        await run_application(application)
     except asyncio.CancelledError:
         logging.info("Application is shutting down...")
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=True)
-    finally:
-        if application and application.running:
-            try:
-                logging.debug("Attempting to stop application")
-                await application.stop()
-                logging.debug("Application stopped")
-            except Exception as e:
-                logging.error(f"Error during application shutdown: {e}", exc_info=True)
 
 def run_main():
     try:
