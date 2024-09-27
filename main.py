@@ -1,6 +1,6 @@
 import asyncpg
 import logging
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, BasePersistence
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, BasePersistence, ContextTypes
 from telegram.error import NetworkError, Conflict
 import asyncio
 import json
@@ -75,7 +75,7 @@ class CustomPostgreSQLPersistence(BasePersistence):
         self.save_func = save_func
         self.data = None
 
-    async def get_data(self):
+    async def get_bot_data(self):
         if self.data is None:
             self.data = await self.load_func() or {}
         return self.data
@@ -137,11 +137,19 @@ async def setup_application():
     persistence = CustomPostgreSQLPersistence(load_db, save_db)
     application = Application.builder().token(CV_ANALYZER_BOT_TOKEN).persistence(persistence).build()
     
-    # Add your command handlers here, for example:
-    # application.add_handler(CommandHandler("start", start_command))
-    # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Add your command handlers here
+    from bot.handlers import handle_document, handle_text, register_handlers
+    application.add_handler(MessageHandler(filters.DOCUMENT, handle_document))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    register_handlers(application)
+    
+    # Add error handler
+    application.add_error_handler(error_handler)
     
     return application
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logging.error(f"Exception while handling an update: {context.error}")
 
 async def main():
     application = None
@@ -154,13 +162,13 @@ async def main():
         
         logging.info("Application started successfully. Press Ctrl+C to stop.")
         await application.run_polling(drop_pending_updates=True)
-    except Conflict:
-        logging.warning("Conflict detected. Waiting before restarting...")
-        await asyncio.sleep(30)
+    except asyncio.CancelledError:
+        logging.info("Application is shutting down...")
     except Exception as e:
         logging.error(f"An error occurred: {e}")
     finally:
         if application:
+            await application.stop()
             await application.shutdown()
 
 if __name__ == '__main__':
