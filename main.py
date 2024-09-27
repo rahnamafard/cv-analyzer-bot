@@ -4,6 +4,8 @@ from telegram.request import HTTPXRequest
 import asyncio
 import signal
 from telegram.error import NetworkError
+from flask import Flask, send_file
+import os
 
 from config import CV_ANALYZER_BOT_TOKEN
 from bot.commands import start, help_command
@@ -15,6 +17,18 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.DEBUG
 )
+
+# Create Flask app
+flask_app = Flask(__name__)
+
+# Add route for database download
+@flask_app.route('/download_db')
+def download_db():
+    db_path = './cv_analyzer.db'
+    if os.path.exists(db_path):
+        return send_file(db_path, as_attachment=True)
+    else:
+        return "Database file not found", 404
 
 def apply_middleware(handler, middlewares):
     async def wrapped(update, context):
@@ -64,6 +78,10 @@ async def main():
         stop = loop.create_future()
         loop.add_signal_handler(signal.SIGINT, stop.set_result, None)
         loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
+
+        # Start Flask app in a separate thread
+        from threading import Thread
+        Thread(target=flask_app.run, kwargs={'host': '0.0.0.0', 'port': 10000}).start()
 
         await stop  # Wait until SIGINT or SIGTERM is received
     except Exception as e:
