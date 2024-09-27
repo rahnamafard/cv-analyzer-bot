@@ -19,3 +19,9 @@
 *.log.*.*.*
 *.log.*.*.*.*
 *.log.*.*.*.*.*
+
+# Virtual Environment
+env
+.venv
+.env
+venv/
