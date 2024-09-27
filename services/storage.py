@@ -5,14 +5,20 @@ import logging
 from config import DB_URL
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class StorageService:
-    def __init__(self):
+    def __init__(self, db_url):
+        self.db_url = db_url
         self.db_pool = None
 
     async def get_db_pool(self):
         if self.db_pool is None:
-            self.db_pool = await asyncpg.create_pool(DB_URL)
+            try:
+                self.db_pool = await asyncpg.create_pool(self.db_url)
+            except Exception as e:
+                logger.error(f"Failed to create database pool: {e}")
+                raise
         return self.db_pool
 
     async def prepare_postgres_database(self):
@@ -47,23 +53,30 @@ class StorageService:
                     CREATE TABLE IF NOT EXISTS cv_job_positions (
                         cv_id INTEGER REFERENCES cv_data(id),
                         position_id INTEGER REFERENCES job_positions(position_id),
-                        job_position TEXT NOT NULL,
                         PRIMARY KEY (cv_id, position_id)
                     );
                 """)
+            logger.info("Database tables created successfully")
         except Exception as e:
-            logger.error(f"Error creating PostgreSQL tables: {e}")
+            logger.error(f"Error creating PostgreSQL tables: {e}", exc_info=True)
             raise
 
     async def save_user(self, user_id, username):
         pool = await self.get_db_pool()
         async with pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO users (user_id, username, last_activity)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (user_id) DO UPDATE
-                SET username = $2, last_activity = $3
-            """, user_id, username, datetime.now())
+            try:
+                result = await conn.fetchrow("""
+                    INSERT INTO users (user_id, username, last_activity)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET username = $2, last_activity = $3
+                    RETURNING *
+                """, user_id, username, datetime.now())
+                logger.info(f"User saved successfully: {dict(result)}")
+                return dict(result)
+            except Exception as e:
+                logger.error(f"Error saving user: {e}", exc_info=True)
+                raise
 
     async def get_user(self, user_id):
         pool = await self.get_db_pool()
@@ -74,23 +87,35 @@ class StorageService:
             return None
 
     async def save_cv(self, cv_data):
+        logger.info("Attempting to save CV data")
         pool = await self.get_db_pool()
         async with pool.acquire() as conn:
-            result = await conn.fetchrow("""
-                INSERT INTO cv_data (user_id, username, file_id, analyzed_data, model, rating)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id
-            """, cv_data['user_id'], cv_data['username'], cv_data['file_id'], 
-                cv_data['analyzed_data'], cv_data['model'], cv_data['rating'])
-            return result['id']
+            try:
+                # Remove 'models/' prefix from the model name if it exists
+                model_name = cv_data['model'].replace('models/', '', 1)
+                result = await conn.fetchrow("""
+                    INSERT INTO cv_data (user_id, username, file_id, analyzed_data, model, rating)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    RETURNING id
+                """, cv_data['user_id'], cv_data['username'], cv_data['file_id'], 
+                    cv_data['analyzed_data'], model_name, cv_data['rating'])
+                logger.info(f"CV saved successfully with id: {result['id']}")
+                return result['id']
+            except Exception as e:
+                logger.exception(f"Error saving CV: {e}")
+                raise
 
     async def save_cv_job_positions(self, cv_id, job_positions):
         pool = await self.get_db_pool()
         async with pool.acquire() as conn:
-            await conn.executemany("""
-                INSERT INTO cv_job_positions (cv_id, job_position)
-                VALUES ($1, $2)
-            """, [(cv_id, position) for position in job_positions])
+            async with conn.transaction():
+                for position in job_positions:
+                    position_id = await self.save_job_position(position)
+                    await conn.execute("""
+                        INSERT INTO cv_job_positions (cv_id, position_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT (cv_id, position_id) DO NOTHING
+                    """, cv_id, position_id)
 
     async def update_cv_rating(self, cv_id, rating):
         pool = await self.get_db_pool()
@@ -114,10 +139,12 @@ class StorageService:
         pool = await self.get_db_pool()
         async with pool.acquire() as conn:
             results = await conn.fetch("""
-                SELECT job_position FROM cv_job_positions
-                WHERE cv_id = $1
+                SELECT jp.position_name 
+                FROM cv_job_positions cjp
+                JOIN job_positions jp ON cjp.position_id = jp.position_id
+                WHERE cjp.cv_id = $1
             """, cv_id)
-            return [row['job_position'] for row in results]
+            return [row['position_name'] for row in results]
 
     async def get_all_cvs(self):
         pool = await self.get_db_pool()
@@ -128,7 +155,11 @@ class StorageService:
     async def increment_user_cv_count(self, user_id):
         pool = await self.get_db_pool()
         async with pool.acquire() as conn:
-            await conn.execute('UPDATE users SET cv_count = cv_count + 1 WHERE user_id = $1', user_id)
+            await conn.execute("""
+                UPDATE users 
+                SET cv_count = cv_count + 1 
+                WHERE user_id = $1
+            """, user_id)
 
     async def get_service_quality_metrics(self):
         pool = await self.get_db_pool()
@@ -158,7 +189,7 @@ class StorageService:
                 INSERT INTO job_positions (position_name)
                 VALUES ($1)
                 ON CONFLICT (position_name) DO UPDATE
-                SET position_name = $1
+                SET position_name = EXCLUDED.position_name
                 RETURNING position_id
             """, position_name)
             return result['position_id']
@@ -177,3 +208,27 @@ class StorageService:
                 LIMIT $2
             """, job_position, limit)
             return [{'cv_id': row['id'], 'analyzed_data': json.loads(row['analyzed_data']), 'match_count': row['match_count']} for row in results]
+
+    async def get_all_users(self):
+        pool = await self.get_db_pool()
+        async with pool.acquire() as conn:
+            try:
+                results = await conn.fetch('SELECT * FROM users')
+                users = [dict(row) for row in results]
+                logger.info(f"Retrieved {len(users)} users from the database")
+                return users
+            except Exception as e:
+                logger.error(f"Error retrieving users: {e}", exc_info=True)
+                raise
+
+    async def update_all_user_cv_counts(self):
+        pool = await self.get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE users u
+                SET cv_count = (
+                    SELECT COUNT(*) 
+                    FROM cv_data cd 
+                    WHERE cd.user_id = u.user_id
+                )
+            """)
