@@ -4,7 +4,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import NetworkError, Conflict
 import asyncio
 
-from config import DB_URL
+from config import DB_URL, CV_ANALYZER_BOT_TOKEN
 
 async def get_db_pool():
     return await asyncpg.create_pool(DB_URL)
@@ -22,7 +22,14 @@ async def load_db():
 
 async def setup_application():
     persistence = CustomPostgreSQLPersistence(load_db, save_db)
+    application = Application.builder().token(CV_ANALYZER_BOT_TOKEN).persistence(persistence).build()
     
+    # Add your command handlers here, for example:
+    # application.add_handler(CommandHandler("start", start_command))
+    # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    return application
+
 class CustomPostgreSQLPersistence:
     def __init__(self, load_func, save_func):
         self.load_func = load_func
@@ -43,6 +50,7 @@ async def main():
         application = await setup_application()
         await application.initialize()
         await application.start()
+        
         logging.info("Application started successfully. Press Ctrl+C to stop.")
         await application.run_polling(drop_pending_updates=True)
     except Conflict:
