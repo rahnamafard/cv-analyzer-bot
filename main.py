@@ -1,6 +1,6 @@
 import asyncpg
 import logging
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, BasePersistence
 from telegram.error import NetworkError, Conflict
 import asyncio
 
@@ -20,18 +20,9 @@ async def load_db():
         result = await conn.fetchval("SELECT data FROM bot_data WHERE id = 1")
     return result
 
-async def setup_application():
-    persistence = CustomPostgreSQLPersistence(load_db, save_db)
-    application = Application.builder().token(CV_ANALYZER_BOT_TOKEN).persistence(persistence).build()
-    
-    # Add your command handlers here, for example:
-    # application.add_handler(CommandHandler("start", start_command))
-    # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    return application
-
-class CustomPostgreSQLPersistence:
+class CustomPostgreSQLPersistence(BasePersistence):
     def __init__(self, load_func, save_func):
+        super().__init__()
         self.load_func = load_func
         self.save_func = save_func
         self.data = None
@@ -45,7 +36,36 @@ class CustomPostgreSQLPersistence:
         self.data = data
         await self.save_func(data)
 
+    async def get_bot_data(self):
+        return await self.get_data()
+
+    async def update_bot_data(self, data):
+        await self.update_data(data)
+
+    async def get_chat_data(self):
+        return {}
+
+    async def get_user_data(self):
+        return {}
+
+    async def get_conversations(self, name):
+        return {}
+
+    async def update_conversation(self, name, key, new_state):
+        pass
+
+async def setup_application():
+    persistence = CustomPostgreSQLPersistence(load_db, save_db)
+    application = Application.builder().token(CV_ANALYZER_BOT_TOKEN).persistence(persistence).build()
+    
+    # Add your command handlers here, for example:
+    # application.add_handler(CommandHandler("start", start_command))
+    # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    return application
+
 async def main():
+    application = None
     try:
         application = await setup_application()
         await application.initialize()
