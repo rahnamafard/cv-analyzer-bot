@@ -74,7 +74,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "username": update.effective_user.username,  # Add this line
             "file_id": update.message.document.file_id,
             "analyzed_data": analysis,
-            "model": "gemini-1.5-pro",  # Add the model information
+            "model": cv_analyzer.model.model_name,  # Dynamically specify the model used
             "rating": None  # Initialize rating as None
         }
         cv_id = storage_service.save_cv(cv_data)
