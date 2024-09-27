@@ -146,14 +146,23 @@ async def main():
     except Exception as e:
         logging.error(f"An error occurred: {e}")
     finally:
-        if application and application.running:
-            await application.stop()
+        if application:
+            if application.running:
+                await application.stop()
             await application.shutdown()
 
-if __name__ == '__main__':
+def run_main():
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logging.info("Bot stopped by user. Shutting down.")
+    except RuntimeError as e:
+        if str(e) == "Event loop is closed":
+            logging.info("Event loop was closed. Application has shut down.")
+        else:
+            logging.exception(f"An unexpected RuntimeError occurred: {e}")
     except Exception as e:
         logging.exception(f"An unexpected error occurred: {e}")
+
+if __name__ == '__main__':
+    run_main()
