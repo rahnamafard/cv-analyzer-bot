@@ -113,6 +113,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE, st
                     logger.warning(f"Markdown parsing failed. Sending message without formatting: {str(e)}")
                     for chunk in chunks:
                         await update.message.reply_text(chunk.replace('*', '').replace('\\', ''))
+                elif "message is too long" in str(e).lower():
+                    logger.warning("Message is too long. Sending a truncated version.")
+                    truncated_analysis = cv_analyzer.truncate_response(analysis)
+                    await update.message.reply_text(truncated_analysis, parse_mode=ParseMode.MARKDOWN_V2)
                 else:
                     raise
 
