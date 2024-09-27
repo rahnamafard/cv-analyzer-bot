@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
@@ -37,20 +38,14 @@ async def main() -> None:
     # Start the bot
     await application.initialize()
     await application.start()
-    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
 
-    try:
-        await application.updater.stop()
-    finally:
-        await application.stop()
+    # Run the bot until you press Ctrl-C
+    await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except RuntimeError as e:
-        if "Event loop is closed" in str(e):
-            # The event loop is already closed, which is fine
-            pass
-        else:
-            # Some other RuntimeError occurred, so we re-raise it
-            raise
+    except KeyboardInterrupt:
+        print("Bot stopped gracefully")
+    except Exception as e:
+        print(f"Error occurred: {e}")
