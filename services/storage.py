@@ -51,7 +51,6 @@ class StorageService:
                         PRIMARY KEY (cv_id, position_id)
                     );
                 """)
-            logger.info("PostgreSQL tables created successfully")
         except Exception as e:
             logger.error(f"Error creating PostgreSQL tables: {e}")
             raise

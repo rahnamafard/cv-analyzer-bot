@@ -9,9 +9,7 @@ from io import BytesIO
 from PIL import Image
 from telegram.error import BadRequest
 import logging
-import json
 
-# Configure logger
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
@@ -19,13 +17,11 @@ cv_analyzer = CVAnalyzer(GOOGLE_GENERATIVE_AI_KEY)
 storage_service = StorageService()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
     user = update.effective_user
     await storage_service.save_user(user.id, user.username)
     await update.message.reply_text(f"سلام {user.first_name}! من ربات تحلیلگر رزومه هستم. لطفاً رزومه خود را به صورت فایل PDF ارسال کنید تا آن را تحلیل کنم.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /help is issued."""
     await update.message.reply_text("برای تحلیل رزومه، لطفاً آن را به صورت فایل PDF ارسال کنید. من آن را بررسی کرده و نتایج تحلیل را برای شما ارسال خواهم کرد.")
 
 async def check_channel_membership(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -35,7 +31,6 @@ async def check_channel_membership(update: Update, context: ContextTypes.DEFAULT
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
-        # Check if the user is a member of the channel
         if not await check_channel_membership(update, context):
             keyboard = [[InlineKeyboardButton("عضویت در کانال", url="https://t.me/growly_ir")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -45,23 +40,15 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             return
 
-        # Send a message to inform the user that the bot is processing the resume
         processing_message = await update.message.reply_text("در حال پردازش رزومه شما. لطفاً چند لحظه صبر کنید...")
 
-        # Get the file from the message
         file = await update.message.document.get_file()
-        
-        # Download the file
         file_content = await file.download_as_bytearray()
-        
-        # Determine the file type
         mime_type = update.message.document.mime_type
         
         if mime_type == 'application/pdf':
-            # Create a BytesIO object from the file content for PDFs
             resume_file = BytesIO(file_content)
         elif mime_type.startswith('image/'):
-            # For images, convert to PDF
             image = Image.open(BytesIO(file_content))
             pdf_buffer = BytesIO()
             image.save(pdf_buffer, 'PDF')
@@ -69,34 +56,21 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         else:
             raise ValueError("Unsupported file type. Please upload a PDF or image file.")
         
-        # Print the file size and mime type
-        print(f"Received file. Size: {len(file_content)} bytes, Mime type: {mime_type}")
-        
-        # Analyze the CV
-        print("Starting CV analysis...")
         analysis, job_positions = cv_analyzer.analyze_cv(resume_file)
         
-        print(f"Job positions received in handler: {job_positions}")  # Add this line for debugging
-        
-        # Store the CV data
         cv_data = {
             "user_id": update.effective_user.id,
-            "username": update.effective_user.username,  # Add this line
+            "username": update.effective_user.username,
             "file_id": update.message.document.file_id,
             "analyzed_data": analysis,
-            "model": cv_analyzer.model.model_name,  # Dynamically specify the model used
-            "rating": None  # Initialize rating as None
+            "model": cv_analyzer.model.model_name,
+            "rating": None
         }
         cv_id = await storage_service.save_cv(cv_data)
         
-        # Save job positions
         if job_positions:
             await storage_service.save_cv_job_positions(cv_id, job_positions)
-            print(f"Saved job positions for CV {cv_id}: {job_positions}")  # Add this line for debugging
-        else:
-            print(f"No job positions to save for CV {cv_id}")  # Add this line for debugging
         
-        # Create rating buttons
         rating_options = [
             ("⭐️⭐️⭐️⭐️⭐️ عالی", 5),
             ("⭐️⭐️⭐️⭐️ خوب", 4),
@@ -111,7 +85,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        # Send the analysis result with rating buttons
         try:
             await update.message.reply_text(analysis, parse_mode=ParseMode.MARKDOWN_V2)
             await update.message.reply_text(
@@ -126,10 +99,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 raise
         
     except Exception as e:
-        # Print the full error for debugging
-        print(f"Error in handle_document: {str(e)}")
-        
-        # Send an error message to the user with more details
+        logger.error(f"Error in handle_document: {str(e)}")
         error_message = f"متأسفانه خطایی در هنگام تحلیل رزومه شما رخ داد:\n\n{str(e)}\n\nلطفاً بعداً دوباره تلاش کنید یا در صورت تداوم مشکل با پشتیبانی تماس بگیرید."
         await update.message.reply_text(error_message)
 
@@ -146,7 +116,6 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await storage_service.update_cv_rating(cv_id, rating)
 
-    # Get the rating text
     rating_text = {
         5: "عالی",
         4: "خوب",
@@ -158,6 +127,5 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_text(f"ممنون از ارزیابی شما! شما به این تحلیل {rating} ستاره ({rating_text}) دادید.")
 
-# Add this function to register the rating handler
 def register_handlers(application):
     application.add_handler(CallbackQueryHandler(handle_rating, pattern=r"^rate_"))
