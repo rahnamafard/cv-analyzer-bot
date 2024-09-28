@@ -1,12 +1,13 @@
 import asyncio
 import logging
+import signal
 import os
-from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from bot.handlers import start, help_command, handle_document, handle_text, register_handlers
 from services.storage import StorageService
 from config import CV_ANALYZER_BOT_TOKEN, DB_URL
+from aiohttp import web
 
 # Set the root logger to DEBUG level
 logging.basicConfig(
@@ -19,22 +20,12 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 async def handle_webhook(request):
-    logger.info("Webhook called")
-    try:
-        update = await request.json()
-        logger.info(f"Received update: {update}")
-        await application.process_update(Update.de_json(update, application.bot))
-        return web.Response()
-    except Exception as e:
-        logger.error(f"Error in webhook handler: {e}", exc_info=True)
-        return web.Response(status=500)
-
-async def health_check(request):
-    return web.Response(text="Bot is running")
+    update = await request.json()
+    await application.process_update(Update.de_json(update, application.bot))
+    return web.Response()
 
 async def main() -> None:
-    global application  # We'll need to access this in handle_webhook
-
+    global application
     # Check if required environment variables are set
     if not CV_ANALYZER_BOT_TOKEN:
         logger.error("CV_ANALYZER_BOT_TOKEN is not set in the environment variables.")
@@ -79,34 +70,41 @@ async def main() -> None:
 
     application.add_handler(CommandHandler("user_count", user_count))
 
+    # Set up graceful shutdown
+    stop_signal = asyncio.Event()
+    
+    def signal_handler():
+        """Handles shutdown signals"""
+        stop_signal.set()
+
+    # Get the current event loop
+    loop = asyncio.get_event_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
+
     try:
         await application.initialize()
         await application.start()
         
-        # Bind to PORT if defined, otherwise default to 5000.
         port = int(os.environ.get('PORT', 5000))
         
-        # Set up the webhook
-        webhook_path = f"/webhook/{CV_ANALYZER_BOT_TOKEN}"
-        webhook_url = f"{os.environ.get('RENDER_EXTERNAL_URL')}{webhook_path}"
+        # Use a more specific webhook path
+        webhook_path = f"webhook/{CV_ANALYZER_BOT_TOKEN}"
+        webhook_url = f"{os.environ.get('RENDER_EXTERNAL_URL')}/{webhook_path}"
         await application.bot.set_webhook(webhook_url)
         
         # Set up the web application
         app = web.Application()
         app.router.add_post(f"/{webhook_path}", handle_webhook)
-        app.router.add_get("/health", health_check)
         
-        # Start the web application
+        # Start the webhook
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', port)
         await site.start()
         
         logger.info(f"Server started on port {port}")
-        
-        # Keep the application running
-        while True:
-            await asyncio.sleep(3600)  # Sleep for an hour (or any other duration)
+        await asyncio.Event().wait()  # Run forever
     except Exception as e:
         logger.error(f"Error occurred: {e}")
     finally:
