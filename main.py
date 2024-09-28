@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import signal
 import os
 from aiohttp import web
 from telegram import Update
@@ -20,9 +19,18 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 async def handle_webhook(request):
-    update = await request.json()
-    await application.process_update(Update.de_json(update, application.bot))
-    return web.Response()
+    logger.info("Webhook called")
+    try:
+        update = await request.json()
+        logger.info(f"Received update: {update}")
+        await application.process_update(Update.de_json(update, application.bot))
+        return web.Response()
+    except Exception as e:
+        logger.error(f"Error in webhook handler: {e}", exc_info=True)
+        return web.Response(status=500)
+
+async def health_check(request):
+    return web.Response(text="Bot is running")
 
 async def main() -> None:
     global application  # We'll need to access this in handle_webhook
@@ -86,6 +94,7 @@ async def main() -> None:
         # Set up the web application
         app = web.Application()
         app.router.add_post(f"/{webhook_path}", handle_webhook)
+        app.router.add_get("/health", health_check)
         
         # Start the web application
         runner = web.AppRunner(app)
