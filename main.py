@@ -78,14 +78,21 @@ async def main() -> None:
     try:
         await application.initialize()
         await application.start()
-        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
         
         # Bind to PORT if defined, otherwise default to 5000.
         port = int(os.environ.get('PORT', 5000))
         
-        # Start the web server on `0.0.0.0:port`
-        await application.bot.set_webhook(f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook")
-        await application.start_webhook(listen="0.0.0.0", port=port, url_path="webhook")
+        # Set the webhook
+        webhook_url = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook"
+        await application.bot.set_webhook(webhook_url)
+        
+        # Start the webhook
+        await application.updater.start_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path="webhook",
+            webhook_url=webhook_url
+        )
         
         logger.info(f"Server started on port {port}")
         await stop_signal.wait()  # Wait until the stop signal is received
