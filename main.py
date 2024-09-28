@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import signal
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from bot.handlers import start, help_command, handle_document, handle_text, register_handlers
@@ -77,8 +78,16 @@ async def main() -> None:
     try:
         await application.initialize()
         await application.start()
-        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-        logger.info("Bot started. Press Ctrl+C to stop.")
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+        
+        # Bind to PORT if defined, otherwise default to 5000.
+        port = int(os.environ.get('PORT', 5000))
+        
+        # Start the web server on `0.0.0.0:port`
+        await application.bot.set_webhook(f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook")
+        await application.start_webhook(listen="0.0.0.0", port=port, url_path="webhook")
+        
+        logger.info(f"Server started on port {port}")
         await stop_signal.wait()  # Wait until the stop signal is received
     except Exception as e:
         logger.error(f"Error occurred: {e}")
