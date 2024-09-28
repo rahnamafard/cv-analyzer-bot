@@ -2,6 +2,7 @@ import asyncio
 import logging
 import signal
 import os
+from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from bot.handlers import start, help_command, handle_document, handle_text, register_handlers
@@ -18,7 +19,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+async def handle_webhook(request):
+    update = await request.json()
+    await application.process_update(Update.de_json(update, application.bot))
+    return web.Response()
+
 async def main() -> None:
+    global application  # We'll need to access this in handle_webhook
+
     # Check if required environment variables are set
     if not CV_ANALYZER_BOT_TOKEN:
         logger.error("CV_ANALYZER_BOT_TOKEN is not set in the environment variables.")
@@ -63,18 +71,6 @@ async def main() -> None:
 
     application.add_handler(CommandHandler("user_count", user_count))
 
-    # Set up graceful shutdown
-    stop_signal = asyncio.Event()
-    
-    def signal_handler():
-        """Handles shutdown signals"""
-        stop_signal.set()
-
-    # Get the current event loop
-    loop = asyncio.get_event_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, signal_handler)
-
     try:
         await application.initialize()
         await application.start()
@@ -82,20 +78,26 @@ async def main() -> None:
         # Bind to PORT if defined, otherwise default to 5000.
         port = int(os.environ.get('PORT', 5000))
         
-        # Set the webhook
-        webhook_url = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook"
+        # Set up the webhook
+        webhook_path = f"/webhook/{CV_ANALYZER_BOT_TOKEN}"
+        webhook_url = f"{os.environ.get('RENDER_EXTERNAL_URL')}{webhook_path}"
         await application.bot.set_webhook(webhook_url)
         
-        # Start the webhook
-        await application.updater.start_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path="webhook",
-            webhook_url=webhook_url
-        )
+        # Set up the web application
+        app = web.Application()
+        app.router.add_post(f"/{webhook_path}", handle_webhook)
+        
+        # Start the web application
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
         
         logger.info(f"Server started on port {port}")
-        await stop_signal.wait()  # Wait until the stop signal is received
+        
+        # Keep the application running
+        while True:
+            await asyncio.sleep(3600)  # Sleep for an hour (or any other duration)
     except Exception as e:
         logger.error(f"Error occurred: {e}")
     finally:
